@@ -40,6 +40,7 @@ public class AuthController : ControllerBase
     private readonly ITokenGenerator _tok;       // Access‑token generator
     private readonly IRefreshTokenService _rtok; // Refresh‑token persistence
     private readonly IConfiguration _cfg;
+    private readonly ILogger<AuthController> _logger;
 
     /// <summary>
     /// Constructor injected by the framework with request‑scoped services.
@@ -49,13 +50,15 @@ public class AuthController : ControllerBase
         SignInManager<ApplicationUser> signIn,
         ITokenGenerator tok,
         IRefreshTokenService rtok,
-        IConfiguration cfg)
+        IConfiguration cfg,
+        ILogger<AuthController> logger)
     {
         _users = users;
         _signIn = signIn;
         _tok = tok;
         _rtok = rtok;
         _cfg = cfg;
+        _logger = logger;
     }
 
     // ─────────────────────────   LOGIN   ─────────────────────────
@@ -92,28 +95,45 @@ public class AuthController : ControllerBase
         if (user is null)
             return NotFound(new { error = 404, message = "Account not found!" });
 
-        // 2. Verify password
-        var valid = await _signIn.CheckPasswordSignInAsync(user, dto.Password, lockoutOnFailure: false);
-        if (!valid.Succeeded)
-            return Unauthorized(new { error = 401, message = "Incorrect email or password!" });
+        // 2. Check if user is locked out
+        if (await _users.IsLockedOutAsync(user))
+        {
+            var lockoutEnd = await _users.GetLockoutEndDateAsync(user);
+            return StatusCode(423, new 
+            { 
+                error = 423, 
+                message = "Account is temporarily locked due to multiple failed login attempts.",
+                lockoutEnd = lockoutEnd?.UtcDateTime
+            });
+        }
 
-        // 3. Fetch the single role assigned to this account
+        // 3. Verify password (lockoutOnFailure: true enables account lockout after failed attempts)
+        var valid = await _signIn.CheckPasswordSignInAsync(user, dto.Password, lockoutOnFailure: true);
+        if (!valid.Succeeded)
+        {
+            _logger.LogWarning("Failed login attempt for user {Email} from IP {IP}", 
+                dto.Email, 
+                HttpContext.Connection.RemoteIpAddress);
+            return Unauthorized(new { error = 401, message = "Incorrect email or password!" });
+        }
+
+        // 4. Fetch the single role assigned to this account
         var roles = await _users.GetRolesAsync(user);
         var role = roles.Count > 0 ? roles[0] : "Student"; // Fallback for safety
 
-        // 4. Domain‑specific data (placeholder until school relationship exists)
+        // 5. Domain‑specific data (placeholder until school relationship exists)
         var schoolId = user.AutoSchoolId ?? 0;
 
-        // 5. Generate ACCESS token
+        // 6. Generate ACCESS token
         var accessTok = _tok.GenerateToken(user, roles, schoolId);
 
-        // 6. Generate REFRESH token (can use different lifetime / key)
+        // 7. Generate REFRESH token (can use different lifetime / key)
         var refreshGen = TokenGeneratorFactory.Create(TokenType.Refresh, HttpContext.RequestServices);
         var refreshTok = refreshGen.GenerateToken(user, roles, schoolId);
         var refreshExp = DateTime.UtcNow.AddDays(int.Parse(_cfg["Jwt:RefreshExpiresDays"]!));
         await _rtok.StoreAsync(user, refreshTok, refreshExp);
 
-        // 7. Build response DTO
+        // 8. Build response DTO
         var response = new
         {
             token = accessTok,
