@@ -70,6 +70,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="docs\" />
+    <Folder Include="DriveFlow.Tests\" />
     <Folder Include="Migrations\" />
     <Folder Include="Services\" />
   </ItemGroup>

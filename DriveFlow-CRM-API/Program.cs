@@ -130,17 +130,23 @@ public partial class Program
         builder.WebHost.UseUrls($"http://*:{port}");
 
         // ─────────────────────────────── CORS Configuration ───────────────────────────────
-        builder.Services.AddCors(options =>
+        // Read allowed origins from environment variable or configuration
+        var allowedOrigins = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")
+    ?? builder.Configuration["Cors:AllowedOrigins"]
+    ?? "http://localhost:3000";
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy =>
         {
-            options.AddPolicy("AllowAllOrigins",
-                builder =>
-                {
-                    builder
-                        .AllowAnyOrigin()
-                        .AllowAnyMethod()
-                        .AllowAnyHeader();
-                });
+            policy
+                .WithOrigins(allowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
         });
+});
 
         // ───────────────────────────── Database & Identity ────────────────────────────────
         // 3. Resolve the base connection string: prefer DB_CONNECTION_URI, fallback to DefaultConnection.
@@ -318,6 +324,12 @@ public partial class Program
             Endpoint = "POST:/api/auth", // login endpoint
             Limit    = 5,                // max 5 attempts
             Period   = "1m"              // per 1 minute window
+        },
+        new RateLimitRule
+        {
+            Endpoint = "POST:/api/auth/refresh", // refresh endpoint
+            Limit    = 10,               // max 10 refreshes
+            Period   = "1m"              // per 1 minute window
         }
             };
         });
@@ -345,36 +357,43 @@ public partial class Program
         // Run once at startup to ensure roles, admin user and initial data exist.
         using (var scope = app.Services.CreateScope())
         {
-            // #region agent log
-            try
+            var env = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+            
+            // Skip migrations for Testing environment (InMemory DB doesn't support relational methods)
+            if (!env.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
             {
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                // Apply migrations before seeding to ensure tables exist.
+                // #region agent log
                 try
                 {
-                    db.Database.Migrate();
-                    LogDebug("H2", "Program.cs:170", "db migrate applied", new { });
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    // Apply migrations before seeding to ensure tables exist.
+                    try
+                    {
+                        db.Database.Migrate();
+                        LogDebug("H2", "Program.cs:170", "db migrate applied", new { });
+                    }
+                    catch (Exception ex)
+                    {
+                        LogDebug("H2", "Program.cs:174", "db migrate failed", new { error = ex.GetType().Name, message = ex.Message });
+                        throw;
+                    }
+                    var canConnect = db.Database.CanConnect();
+                    var pending = db.Database.GetPendingMigrations().ToList();
+                    LogDebug(
+                        "H2",
+                        "Program.cs:167",
+                        "db connectivity and migrations",
+                        new { canConnect, pendingCount = pending.Count });
                 }
                 catch (Exception ex)
                 {
-                    LogDebug("H2", "Program.cs:174", "db migrate failed", new { error = ex.GetType().Name, message = ex.Message });
-                    throw;
+                    LogDebug("H2", "Program.cs:175", "db connectivity check failed", new { error = ex.GetType().Name });
                 }
-                var canConnect = db.Database.CanConnect();
-                var pending = db.Database.GetPendingMigrations().ToList();
-                LogDebug(
-                    "H2",
-                    "Program.cs:167",
-                    "db connectivity and migrations",
-                    new { canConnect, pendingCount = pending.Count });
-            }
-            catch (Exception ex)
-            {
-                LogDebug("H2", "Program.cs:175", "db connectivity check failed", new { error = ex.GetType().Name });
-            }
-            // #endregion
+                // #endregion
 
-            SeedData.Initialize(scope.ServiceProvider);
+                SeedData.Initialize(scope.ServiceProvider);
+            }
+            // For Testing environment, seeding is handled by CustomWebApplicationFactory
         }
 
         // ───────────────────────────── Swagger / OpenAPI – Middleware ─────────────────────
@@ -393,7 +412,7 @@ public partial class Program
         app.UseRouting();
 
         // Apply CORS middleware
-        app.UseCors("AllowAllOrigins");
+        app.UseCors("AllowFrontend");
 
         app.UseIpRateLimiting();
         app.UseAuthentication();            // Must precede UseAuthorization

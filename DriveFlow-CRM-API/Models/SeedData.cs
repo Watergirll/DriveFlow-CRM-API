@@ -109,7 +109,7 @@ namespace DriveFlow_CRM_API.Models;
             return result != null && Convert.ToInt32(result) > 0;
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Roles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  Roles       ──────────────────────── 
         try
         {
             if (!context.Roles.Any())
@@ -348,7 +348,7 @@ namespace DriveFlow_CRM_API.Models;
 
 
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Geography (County, City, Address) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  Geography (County, City, Address)       ──────────────────────── 
         if (!context.Counties.Any())
         {
             context.Counties.AddRange(
@@ -402,7 +402,7 @@ namespace DriveFlow_CRM_API.Models;
             context.SaveChanges();
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ AutoSchool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  AutoSchool       ──────────────────────── 
         if (!context.AutoSchools.Any())
         {
             context.AutoSchools.AddRange(
@@ -454,7 +454,7 @@ namespace DriveFlow_CRM_API.Models;
             context.SaveChanges();
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ License â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  License       ──────────────────────── 
         if (!context.Licenses.Any())
         {
             var licenses = new List<License>();
@@ -474,7 +474,7 @@ namespace DriveFlow_CRM_API.Models;
             .AsNoTracking()
             .ToDictionary(l => l.Type, l => l.LicenseId);
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ TeachingCategory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  TeachingCategory       ──────────────────────── 
         if (!context.TeachingCategories.Any())
         {
             var teachingCategories = new List<TeachingCategory>();
@@ -517,7 +517,7 @@ namespace DriveFlow_CRM_API.Models;
             .GroupBy(tc => tc.AutoSchoolId)
             .ToDictionary(g => g.Key, g => g.Select(tc => tc.TeachingCategoryId).OrderBy(id => id).ToList());
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ ExamForm â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  ExamForm       ──────────────────────── 
         // Create one ExamForm for each of the 15 licenses (FormId = LicenseId for simplicity)
         if (!context.ExamForms.Any())
         {
@@ -535,7 +535,7 @@ namespace DriveFlow_CRM_API.Models;
             context.SaveChanges();
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  Users       ──────────────────────── 
         if (!context.Users.Any())
         {
             var hasher = new PasswordHasher<ApplicationUser>();
@@ -637,7 +637,7 @@ namespace DriveFlow_CRM_API.Models;
             context.SaveChanges();
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ ApplicationUserTeachingCategory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  ApplicationUserTeachingCategory       ──────────────────────── 
         if (!context.ApplicationUserTeachingCategories.Any())
         {
             var assignments = new List<ApplicationUserTeachingCategory>();
@@ -690,7 +690,7 @@ namespace DriveFlow_CRM_API.Models;
             context.SaveChanges();
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ ExamItems â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  ExamItems       ──────────────────────── 
         // Generate items for ALL 15 licenses using 3 templates:
         // - Template CAR (B): for B1, B, BE (LicenseId 5, 6, 7)
         // - Template MOTO (A): for AM, A1, A2, A (LicenseId 1, 2, 3, 4)
@@ -852,7 +852,7 @@ namespace DriveFlow_CRM_API.Models;
             context.ExamItems.AddRange(examItems);
             context.SaveChanges();
         }
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Vehicle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  Vehicle       ──────────────────────── 
         if (!context.Vehicles.Any())
         {
             var vehicles = new List<Vehicle>();
@@ -913,7 +913,7 @@ namespace DriveFlow_CRM_API.Models;
                 .ToDictionary(g => g.Key, g => g.Select(v => v.VehicleId).OrderBy(id => id).ToList());
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ File (Student enrollment) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  File (Student enrollment)       ──────────────────────── 
         if (!context.Files.Any())
         {
             var files = new List<File>();
@@ -957,7 +957,7 @@ namespace DriveFlow_CRM_API.Models;
             context.SaveChanges();
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Payment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  Payment       ──────────────────────── 
         if (!context.Payments.Any())
         {
             var payments = new List<Payment>();
@@ -976,7 +976,7 @@ namespace DriveFlow_CRM_API.Models;
             context.SaveChanges();
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Request â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  Request       ──────────────────────── 
         if (!context.Requests.Any())
         {
             var requestId = 1;
@@ -1078,7 +1078,8 @@ namespace DriveFlow_CRM_API.Models;
             }
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ InstructorAvailability â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  InstructorAvailability       ──────────────────────── 
+
         if (!context.InstructorAvailabilities.Any())
         {
             var intervals = new List<InstructorAvailability>();
@@ -1111,7 +1112,7 @@ namespace DriveFlow_CRM_API.Models;
             context.SaveChanges();
         }
 
-        // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Appointment (ready for SessionForm) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        //       ────────────────────────  Appointment (ready for SessionForm)       ──────────────────────── 
         if (!context.Appointments.Any())
         {
             var appointments = new List<Appointment>();
