@@ -59,6 +59,8 @@ namespace DriveFlow_CRM_API.Json
     [JsonSerializable(typeof(CreateAutoSchoolDto))]
     [JsonSerializable(typeof(NewAutoSchoolDto))]
     [JsonSerializable(typeof(NewSchoolAdminDto))]
+    [JsonSerializable(typeof(MoneyDto))]
+    [JsonSerializable(typeof(SchoolKpisDto))]
 
     // ───────────────────────── VEHICLE CONTROLLER ─────────────────────────
     [JsonSerializable(typeof(VehicleDto))]
@@ -109,6 +111,12 @@ namespace DriveFlow_CRM_API.Json
     [JsonSerializable(typeof(InstructorFileDetailsDto))]
     [JsonSerializable(typeof(InstructorAppointmentDto))]
     [JsonSerializable(typeof(List<InstructorAppointmentDto>))]
+    [JsonSerializable(typeof(Bucket))]
+    [JsonSerializable(typeof(List<Bucket>))]
+    [JsonSerializable(typeof(StudentItemAgg))]
+    [JsonSerializable(typeof(List<StudentItemAgg>))]
+    [JsonSerializable(typeof(List<(int,int)>))]
+    [JsonSerializable(typeof(InstructorCohortStatsDto))]
 
     // ───────────────────── INSTRUCTOR CATEGORIES CONTROLLER ─────────────────────
     [JsonSerializable(typeof(InstructorTeachingCategoryResponseDto))]
@@ -121,6 +129,26 @@ namespace DriveFlow_CRM_API.Json
     [JsonSerializable(typeof(InstructorAvailabilityDto))]
     [JsonSerializable(typeof(List<InstructorAvailabilityDto>))]
     [JsonSerializable(typeof(CreateInstructorAvailabilityDto))]
+
+    // ───────────────────────── AI CONTROLLER ─────────────────────────
+    [JsonSerializable(typeof(ChatRequest))]
+    [JsonSerializable(typeof(ChatMessage))]
+    [JsonSerializable(typeof(List<ChatMessage>))]
+    [JsonSerializable(typeof(AiStudentContextResponse))]  // Used internally by AiContextBuilder
+    [JsonSerializable(typeof(StudentContextDto))]
+    [JsonSerializable(typeof(StudentSummaryDto))]
+    [JsonSerializable(typeof(CategoryProgressDto))]
+    [JsonSerializable(typeof(List<CategoryProgressDto>))]
+    [JsonSerializable(typeof(OverallProgressDto))]
+    [JsonSerializable(typeof(MistakeSummaryDto))]
+    [JsonSerializable(typeof(List<MistakeSummaryDto>))]
+    [JsonSerializable(typeof(SessionEvaluationDto))]
+    [JsonSerializable(typeof(List<SessionEvaluationDto>))]
+    [JsonSerializable(typeof(MistakeDetailDto))]
+    [JsonSerializable(typeof(List<MistakeDetailDto>))]
+    [JsonSerializable(typeof(SessionHighlightDto))]
+    [JsonSerializable(typeof(List<SessionHighlightDto>))]
+    [JsonSerializable(typeof(DataAvailabilityDto))]
 
     internal partial class AppJsonContext : JsonSerializerContext
     {

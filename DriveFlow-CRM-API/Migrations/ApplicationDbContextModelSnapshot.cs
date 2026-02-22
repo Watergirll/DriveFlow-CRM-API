@@ -272,6 +272,54 @@ namespace DriveFlow_CRM_API.Migrations
                     b.ToTable("Counties");
                 });
 
+            modelBuilder.Entity("DriveFlow_CRM_API.Models.ExamForm", b =>
+                {
+                    b.Property<int>("FormId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("LicenseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MaxPoints")
+                        .HasColumnType("int");
+
+                    b.HasKey("FormId");
+
+                    b.HasIndex("LicenseId")
+                        .IsUnique();
+
+                    b.ToTable("ExamForms");
+                });
+
+            modelBuilder.Entity("DriveFlow_CRM_API.Models.ExamItem", b =>
+                {
+                    b.Property<int>("ItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<int>("FormId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PenaltyPoints")
+                        .HasColumnType("int");
+
+                    b.HasKey("ItemId");
+
+                    b.HasIndex("FormId", "Description")
+                        .IsUnique();
+
+                    b.ToTable("ExamItems");
+                });
+
             modelBuilder.Entity("DriveFlow_CRM_API.Models.File", b =>
                 {
                     b.Property<int>("FileId")
@@ -425,6 +473,45 @@ namespace DriveFlow_CRM_API.Migrations
                     b.HasIndex("RequestDate");
 
                     b.ToTable("Requests");
+                });
+
+            modelBuilder.Entity("DriveFlow_CRM_API.Models.SessionForm", b =>
+                {
+                    b.Property<int>("SessionFormId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("AppointmentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("FinalizedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("FormId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MistakesJson")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Result")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int?>("TotalPoints")
+                        .HasColumnType("int");
+
+                    b.HasKey("SessionFormId");
+
+                    b.HasIndex("AppointmentId")
+                        .IsUnique();
+
+                    b.HasIndex("FormId");
+
+                    b.ToTable("SessionForms");
                 });
 
             modelBuilder.Entity("DriveFlow_CRM_API.Models.TeachingCategory", b =>
@@ -730,6 +817,28 @@ namespace DriveFlow_CRM_API.Migrations
                     b.Navigation("County");
                 });
 
+            modelBuilder.Entity("DriveFlow_CRM_API.Models.ExamForm", b =>
+                {
+                    b.HasOne("DriveFlow_CRM_API.Models.License", "License")
+                        .WithOne("ExamForm")
+                        .HasForeignKey("DriveFlow_CRM_API.Models.ExamForm", "LicenseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("License");
+                });
+
+            modelBuilder.Entity("DriveFlow_CRM_API.Models.ExamItem", b =>
+                {
+                    b.HasOne("DriveFlow_CRM_API.Models.ExamForm", "ExamForm")
+                        .WithMany("Items")
+                        .HasForeignKey("FormId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ExamForm");
+                });
+
             modelBuilder.Entity("DriveFlow_CRM_API.Models.File", b =>
                 {
                     b.HasOne("DriveFlow_CRM_API.Models.ApplicationUser", "Instructor")
@@ -791,6 +900,25 @@ namespace DriveFlow_CRM_API.Migrations
                         .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("AutoSchool");
+                });
+
+            modelBuilder.Entity("DriveFlow_CRM_API.Models.SessionForm", b =>
+                {
+                    b.HasOne("DriveFlow_CRM_API.Models.Appointment", "Appointment")
+                        .WithOne()
+                        .HasForeignKey("DriveFlow_CRM_API.Models.SessionForm", "AppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("DriveFlow_CRM_API.Models.ExamForm", "ExamForm")
+                        .WithMany()
+                        .HasForeignKey("FormId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
+
+                    b.Navigation("ExamForm");
                 });
 
             modelBuilder.Entity("DriveFlow_CRM_API.Models.TeachingCategory", b =>
@@ -911,6 +1039,11 @@ namespace DriveFlow_CRM_API.Migrations
                     b.Navigation("Cities");
                 });
 
+            modelBuilder.Entity("DriveFlow_CRM_API.Models.ExamForm", b =>
+                {
+                    b.Navigation("Items");
+                });
+
             modelBuilder.Entity("DriveFlow_CRM_API.Models.File", b =>
                 {
                     b.Navigation("Appointments");
@@ -918,6 +1051,8 @@ namespace DriveFlow_CRM_API.Migrations
 
             modelBuilder.Entity("DriveFlow_CRM_API.Models.License", b =>
                 {
+                    b.Navigation("ExamForm");
+
                     b.Navigation("TeachingCategories");
 
                     b.Navigation("Vehicles");

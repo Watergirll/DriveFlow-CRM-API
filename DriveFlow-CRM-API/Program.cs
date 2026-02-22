@@ -1,4 +1,6 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using System.Data.Common;
+using System.Text.Json;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -12,6 +14,7 @@ using DriveFlow_CRM_API.Authentication.Tokens.Handlers;
 using DriveFlow_CRM_API.Auth;
 using Microsoft.AspNetCore.Authorization;
 using DriveFlow_CRM_API.Json;
+using DriveFlow_CRM_API.Services;
 
 /// <summary>
 /// Configures services (Swagger, EF Core, Identity, JWT, rate-limit), builds the HTTP
@@ -23,9 +26,55 @@ public partial class Program
     // Load variables from .env FIRST, so they are visible to the configuration builder.
     public static void Main(string[] args)
     {
-        DotNetEnv.Env.Load();
+        // Try to load .env from current directory first, then parent directories
+        var currentDir = Directory.GetCurrentDirectory();
+        var envPath = Path.Combine(currentDir, ".env");
+        
+        if (!System.IO.File.Exists(envPath))
+        {
+            // Try parent directory (for when running from DriveFlow-CRM-API\DriveFlow-CRM-API)
+            var parentDir = Directory.GetParent(currentDir)?.FullName;
+            if (parentDir != null)
+            {
+                var parentEnvPath = Path.Combine(parentDir, ".env");
+                if (System.IO.File.Exists(parentEnvPath))
+                {
+                    envPath = parentEnvPath;
+                }
+            }
+        }
+        
+        if (System.IO.File.Exists(envPath))
+        {
+            DotNetEnv.Env.Load(envPath);
+        }
 
         var builder = WebApplication.CreateBuilder(args);
+        // #region agent log
+        void LogDebug(string hypothesisId, string location, string message, object data)
+        {
+            try
+            {
+                var logPath = Environment.GetEnvironmentVariable("DEBUG_LOG_PATH") ?? "/debug/debug.log";
+                var payload = new
+                {
+                    sessionId = "debug-session",
+                    runId = "pre-fix",
+                    hypothesisId,
+                    location,
+                    message,
+                    data,
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                };
+                var line = JsonSerializer.Serialize(payload);
+                System.IO.File.AppendAllText(logPath, line + Environment.NewLine);
+            }
+            catch
+            {
+                // avoid breaking startup on log failure
+            }
+        }
+        // #endregion
 
         // Enable detailed startup errors (useful while debugging 500 responses)
         builder.WebHost.CaptureStartupErrors(true)
@@ -81,38 +130,85 @@ public partial class Program
         builder.WebHost.UseUrls($"http://*:{port}");
 
         // ─────────────────────────────── CORS Configuration ───────────────────────────────
+        // Allow any origin with credentials support (required for Netlify preview deployments)
+        // SetIsOriginAllowed(_ => true) dynamically allows any origin while supporting credentials
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowAllOrigins",
-                builder =>
+                policy =>
                 {
-                    builder
-                        .AllowAnyOrigin()
+                    policy
+                        .SetIsOriginAllowed(_ => true)  // Allow any origin
                         .AllowAnyMethod()
-                        .AllowAnyHeader();
+                        .AllowAnyHeader()
+                        .AllowCredentials()
+                        .WithExposedHeaders("Content-Type", "Cache-Control", "Connection");
                 });
         });
 
         // ───────────────────────────── Database & Identity ────────────────────────────────
-        // 3. Resolve the base connection string from appsettings.json or environment variables.
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+        // 3. Resolve the base connection string: prefer DB_CONNECTION_URI, fallback to DefaultConnection.
+        string? connectionString = null;
 
-        // 4. Convert Heroku-style JawsDB URI → MySQL connection string when present.
-        var jawsDbUrl = Environment.GetEnvironmentVariable("JAWSDB_URL");
-        if (!string.IsNullOrEmpty(jawsDbUrl))
+        var dbConnectionUri = Environment.GetEnvironmentVariable("DB_CONNECTION_URI");
+        if (!string.IsNullOrWhiteSpace(dbConnectionUri))
         {
-            var uri = new Uri(jawsDbUrl);
+            var uri = new Uri(dbConnectionUri);
             connectionString =
                 $"Server={uri.Host};Database={uri.AbsolutePath.Trim('/')};" +
                 $"User ID={uri.UserInfo.Split(':')[0]};" +
                 $"Password={uri.UserInfo.Split(':')[1]};" +
-                $"Port={uri.Port};SSL Mode=Required;";
+                $"Port={uri.Port};SSL Mode=Required;" +
+                // Connection resilience settings for remote MySQL server
+                $"Connection Timeout=120;Default Command Timeout=300;" +
+                $"Keepalive=30;Connection Lifetime=300;" +
+                $"Pooling=true;Min Pool Size=0;Max Pool Size=100;" +
+                $"Connection Reset=false;";
         }
+        else
+        {
+            connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+        }
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "No database connection configured. Set DB_CONNECTION_URI or ConnectionStrings__DefaultConnection.");
+        }
+
+        // #region agent log
+        try
+        {
+            var csb = new DbConnectionStringBuilder { ConnectionString = connectionString };
+            LogDebug(
+                "H1",
+                "Program.cs:122",
+                "resolved connection string",
+                new
+                {
+                    source = string.IsNullOrWhiteSpace(dbConnectionUri) ? "DefaultConnection" : "DB_CONNECTION_URI",
+                    server = csb.ContainsKey("Server") ? csb["Server"]?.ToString() : null,
+                    database = csb.ContainsKey("Database") ? csb["Database"]?.ToString() : null,
+                    port = csb.ContainsKey("Port") ? csb["Port"]?.ToString() : null
+                });
+        }
+        catch (Exception ex)
+        {
+            LogDebug("H1", "Program.cs:135", "connection string parse failed", new { error = ex.GetType().Name });
+        }
+        // #endregion
 
         // 5. Register the application's DbContext (Pomelo MySQL provider).
         builder.Services.AddDbContext<ApplicationDbContext>(options =>
         {
-            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
+            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString), mySqlOptions =>
+            {
+                mySqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorNumbersToAdd: null);
+                mySqlOptions.CommandTimeout(300); // 5 minutes
+            });
         });
 
         // 6. Configure ASP.NET Core Identity with role support.
@@ -203,7 +299,13 @@ public partial class Program
         // 4) Refresh-token storage / validation service.
         builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 
-        // 5) HttpClient factory for external service communications
+        // 5) AI Context Builder service (builds LLM context for student chatbot)
+        builder.Services.AddScoped<IAiContextBuilder, AiContextBuilder>();
+
+        // 6) AI Streaming Service (proxies requests to OpenRouter API)
+        builder.Services.AddScoped<IAiStreamingService, AiStreamingService>();
+
+        // 7) HttpClient factory for external service communications (used by AI streaming)
         builder.Services.AddHttpClient();
 
         // ─────────────────────────────── Rate-Limit / Cool-down ──────────────────────────────
@@ -247,6 +349,35 @@ public partial class Program
         // Run once at startup to ensure roles, admin user and initial data exist.
         using (var scope = app.Services.CreateScope())
         {
+            // #region agent log
+            try
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                // Apply migrations before seeding to ensure tables exist.
+                try
+                {
+                    db.Database.Migrate();
+                    LogDebug("H2", "Program.cs:170", "db migrate applied", new { });
+                }
+                catch (Exception ex)
+                {
+                    LogDebug("H2", "Program.cs:174", "db migrate failed", new { error = ex.GetType().Name, message = ex.Message });
+                    throw;
+                }
+                var canConnect = db.Database.CanConnect();
+                var pending = db.Database.GetPendingMigrations().ToList();
+                LogDebug(
+                    "H2",
+                    "Program.cs:167",
+                    "db connectivity and migrations",
+                    new { canConnect, pendingCount = pending.Count });
+            }
+            catch (Exception ex)
+            {
+                LogDebug("H2", "Program.cs:175", "db connectivity check failed", new { error = ex.GetType().Name });
+            }
+            // #endregion
+
             SeedData.Initialize(scope.ServiceProvider);
         }
 
